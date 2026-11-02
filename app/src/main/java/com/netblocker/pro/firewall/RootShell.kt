@@ -13,10 +13,10 @@ object RootShell {
     @Volatile
     private var cachedRoot: Boolean? = null
 
-    fun isRootAvailable(force: Boolean = false): Boolean {
+    fun isRootAvailable(force: Boolean = false, timeoutSec: Long = 60): Boolean {
         val cached = cachedRoot
         if (cached != null && !force) return cached
-        val r = run(listOf("id -u"), timeoutSec = 60)
+        val r = run(listOf("id -u"), timeoutSec = timeoutSec)
         val ok = r.executed && r.output.trim().startsWith("0")
         cachedRoot = ok
         return ok

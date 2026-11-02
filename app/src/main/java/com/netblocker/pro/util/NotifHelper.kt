@@ -10,10 +10,11 @@ import androidx.core.app.NotificationCompat
 import com.netblocker.pro.MainActivity
 import com.netblocker.pro.R
 import com.netblocker.pro.data.Prefs
+import com.netblocker.pro.firewall.Engine
 
 object NotifHelper {
 
-    private const val CHANNEL_ID = "protection"
+    const val CHANNEL_ID = "protection"
     private const val NOTIFICATION_ID = 1
 
     fun ensureChannel(context: Context) {
@@ -32,7 +33,9 @@ object NotifHelper {
     fun update(context: Context) {
         val appContext = context.applicationContext
         val manager = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val shouldShow = Prefs.protectionOn(appContext) && Prefs.showNotification(appContext)
+        val shouldShow = Prefs.protectionOn(appContext) &&
+            Prefs.showNotification(appContext) &&
+            Engine.usesRootEngine(appContext)
         if (!shouldShow) {
             manager.cancel(NOTIFICATION_ID)
             return

@@ -1,9 +1,11 @@
 package com.netblocker.pro.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
@@ -17,6 +19,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -28,7 +31,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.netblocker.pro.R
 import com.netblocker.pro.data.AppRepository
 import com.netblocker.pro.data.Prefs
-import com.netblocker.pro.firewall.RuleApplier
+import com.netblocker.pro.firewall.Engine
 import com.netblocker.pro.firewall.RootShell
 import com.netblocker.pro.model.AppEntry
 import com.netblocker.pro.util.NotifHelper
@@ -56,6 +59,21 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
 
     private val notifPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { NotifHelper.update(requireContext()) }
+
+    private val vpnConsent =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val ctx = context ?: return@registerForActivityResult
+            if (result.resultCode == Activity.RESULT_OK) {
+                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                    Engine.startVpn(ctx)
+                    withContext(Dispatchers.Main) { if (isAdded) refreshStatus() }
+                }
+            } else {
+                Prefs.setProtection(ctx, false)
+                bindProtectionSwitch()
+                Toast.makeText(ctx, R.string.toast_vpn_denied, Toast.LENGTH_SHORT).show()
+            }
+        }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -110,10 +128,7 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
         }
         styleSegments()
 
-        switchProtection.isChecked = Prefs.protectionOn(requireContext())
-        switchProtection.setOnCheckedChangeListener { _, checked ->
-            onProtectionChanged(checked)
-        }
+        bindProtectionSwitch()
 
         loadApps()
         refreshStatus()
@@ -121,11 +136,15 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
 
     override fun onResume() {
         super.onResume()
+        bindProtectionSwitch()
+        loadApps()
+        refreshStatus()
+    }
+
+    private fun bindProtectionSwitch() {
         switchProtection.setOnCheckedChangeListener(null)
         switchProtection.isChecked = Prefs.protectionOn(requireContext())
         switchProtection.setOnCheckedChangeListener { _, checked -> onProtectionChanged(checked) }
-        loadApps()
-        refreshStatus()
     }
 
     // ----- Data -----
@@ -193,17 +212,32 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
     private fun onProtectionChanged(on: Boolean) {
         val ctx = requireContext()
         Prefs.setProtection(ctx, on)
-        if (on && Build.VERSION.SDK_INT >= 33) {
-            if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        NotifHelper.update(ctx)
+        applyFilter()
+        if (on) {
+            RootShell.invalidateRoot()
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                val result = Engine.startBlocking(ctx)
+                withContext(Dispatchers.Main) {
+                    if (!isAdded) return@withContext
+                    when (result) {
+                        Engine.StartResult.VPN_CONSENT_NEEDED -> {
+                            val consent = VpnService.prepare(ctx)
+                            if (consent != null) vpnConsent.launch(consent)
+                        }
+                        Engine.StartResult.FAILED ->
+                            Toast.makeText(ctx, R.string.toast_failed, Toast.LENGTH_SHORT).show()
+                        else -> {}
+                    }
+                    refreshStatus()
+                }
+            }
+        } else {
+            viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                Engine.stop(ctx)
+                withContext(Dispatchers.Main) { if (isAdded) refreshStatus() }
             }
         }
-        NotifHelper.update(ctx)
-        if (on) RootShell.invalidateRoot()
-        refreshStatus()
-        applyFilter()
     }
 
     private fun showDetail(app: AppEntry) {
@@ -228,9 +262,7 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
         applyJob?.cancel()
         val appCtx = requireContext().applicationContext
         applyJob = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            if (Prefs.protectionOn(appCtx) && RootShell.isRootAvailable()) {
-                RuleApplier.applyRules(appCtx)
-            }
+            Engine.applyRuleChanges(appCtx)
             withContext(Dispatchers.Main) {
                 if (isAdded) refreshStatus()
             }
@@ -241,36 +273,30 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
         if (!isAdded) return
         val appCtx = requireContext().applicationContext
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            val root = RootShell.isRootAvailable()
-            var status = if (root) RuleApplier.status(appCtx) else RuleApplier.Status.NO_ROOT
-            if (root && Prefs.protectionOn(appCtx) && status == RuleApplier.Status.INACTIVE) {
-                RuleApplier.applyRules(appCtx)
-                status = RuleApplier.status(appCtx)
-            }
+            val state = Engine.status(appCtx)
             withContext(Dispatchers.Main) {
                 if (!isAdded) return@withContext
-                updateStatusCard(root, status)
+                updateStatusCard(state)
                 swipe.isRefreshing = false
             }
         }
     }
 
-    private fun updateStatusCard(root: Boolean, status: RuleApplier.Status) {
+    private fun updateStatusCard(state: Engine.State) {
         val ctx = requireContext()
         val on = Prefs.protectionOn(ctx)
+        val whitelist = Prefs.whitelistMode(ctx)
+        val count = allApps.count { it.policy != AppEntry.POLICY_ALLOW }
+        val engineLabel = if (state.usingRoot) "Root · iptables" else "VPN · no root"
         val (colorRes, title, sub) = when {
             !on -> Triple(R.color.ios_tertiary, "Protection is off", "Turn on the switch to enable the firewall")
-            !root -> Triple(R.color.ios_red, "Protection is on", "Root access is required to enforce rules")
-            status == RuleApplier.Status.ACTIVE -> {
-                val count = allApps.count { it.policy != AppEntry.POLICY_ALLOW }
-                val detail = if (Prefs.whitelistMode(ctx)) {
-                    "$count apps whitelisted"
-                } else {
-                    "$count apps restricted"
-                }
-                Triple(R.color.ios_green, "Protection is on", "Firewall active · $detail")
+            state.usingRoot && !state.rootAvailable ->
+                Triple(R.color.ios_red, "Protection is on", "Root access is required for the iptables engine")
+            state.active -> {
+                val detail = if (whitelist) "$count apps whitelisted" else "$count apps restricted"
+                Triple(R.color.ios_green, "Protection is on", "$engineLabel · $detail")
             }
-            else -> Triple(R.color.ios_orange, "Protection is on", "Applying firewall rules…")
+            else -> Triple(R.color.ios_orange, "Protection is on", "Starting firewall…")
         }
 
         frameStatusIcon.background = GradientDrawable().apply {

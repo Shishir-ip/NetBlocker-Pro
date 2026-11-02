@@ -1,8 +1,10 @@
 package com.netblocker.pro.ui
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Typeface
 import android.net.Uri
+import android.net.VpnService
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
@@ -23,6 +25,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.netblocker.pro.R
 import com.netblocker.pro.data.Prefs
+import com.netblocker.pro.firewall.Engine
 import com.netblocker.pro.firewall.RuleApplier
 import com.netblocker.pro.firewall.RootShell
 import com.netblocker.pro.util.Backup
@@ -43,6 +46,16 @@ class SettingsFragment : Fragment() {
     private val importLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) doImport(uri)
+        }
+    private val vpnConsent =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK && isAdded) {
+                viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+                    Engine.startVpn(requireContext())
+                }
+            } else if (isAdded) {
+                Toast.makeText(requireContext(), R.string.toast_vpn_denied, Toast.LENGTH_SHORT).show()
+            }
         }
 
     override fun onCreateView(
@@ -108,9 +121,23 @@ class SettingsFragment : Fragment() {
             applyInBackground()
         }
 
+        val methodSegment = segmentedRow(
+            ctx,
+            getString(R.string.s_method),
+            getString(R.string.s_method_sub),
+            listOf(getString(R.string.method_auto), getString(R.string.method_root), getString(R.string.method_vpn)),
+            Prefs.blockingMethod(ctx)
+        ) { index ->
+            Prefs.setBlockingMethod(ctx, index)
+            if (Prefs.protectionOn(ctx)) {
+                switchMethodAndRestart()
+            }
+        }
+
         content.addView(
             card(
                 row(ctx, title = getString(R.string.s_protection), subtitle = getString(R.string.s_protection_sub), switchView = protectionSwitch),
+                methodSegment.first,
                 modeSegment.first,
                 row(ctx, title = getString(R.string.s_boot), subtitle = getString(R.string.s_boot_sub),
                     switchView = bindSwitch(ctx, Prefs.applyOnBoot(ctx)) { Prefs.setApplyOnBoot(ctx, it) }),
@@ -374,17 +401,36 @@ class SettingsFragment : Fragment() {
         return sw
     }
 
+    /** Switch between the root and VPN engines while protection stays on. */
+    private fun switchMethodAndRestart() {
+        if (!isAdded) return
+        val appCtx = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            Engine.stop(appCtx)
+            val result = Engine.startBlocking(appCtx)
+            withContext(Dispatchers.Main) {
+                if (!isAdded) return@withContext
+                if (result == Engine.StartResult.VPN_CONSENT_NEEDED) {
+                    val consent = VpnService.prepare(appCtx)
+                    if (consent != null) vpnConsent.launch(consent)
+                } else if (result == Engine.StartResult.FAILED) {
+                    toast(R.string.toast_failed)
+                }
+            }
+        }
+    }
+
     private fun applyInBackground() {
         if (!isAdded) return
         val appCtx = requireContext().applicationContext
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            val ok = RootShell.isRootAvailable() && RuleApplier.applyOrClear(appCtx)
+            val ok = Engine.applyNow(appCtx)
             withContext(Dispatchers.Main) {
                 if (!isAdded) return@withContext
                 toast(
                     when {
-                        !RootShell.isRootAvailable() -> R.string.toast_no_root
-                        ok -> R.string.toast_applied
+                        ok && Prefs.protectionOn(appCtx) -> R.string.toast_applied
+                        ok -> R.string.toast_cleared
                         else -> R.string.toast_failed
                     }
                 )
@@ -396,13 +442,11 @@ class SettingsFragment : Fragment() {
         if (!isAdded) return
         val appCtx = requireContext().applicationContext
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-            val root = RootShell.isRootAvailable()
-            val ok = root && RuleApplier.applyOrClear(appCtx)
+            val ok = Engine.applyNow(appCtx)
             withContext(Dispatchers.Main) {
                 if (!isAdded) return@withContext
                 toast(
                     when {
-                        !root -> R.string.toast_no_root
                         ok && Prefs.protectionOn(appCtx) -> R.string.toast_applied
                         ok -> R.string.toast_cleared
                         else -> R.string.toast_failed

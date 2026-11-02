@@ -63,6 +63,15 @@
     <string name="s_reset">Reset All Rules</string>
     <string name="s_reset_sub">Remove every app rule from the firewall</string>
 
+    <string name="s_method">Blocking Method</string>
+    <string name="s_method_sub">Automatic: root (iptables) when available, otherwise the no-root VPN engine</string>
+    <string name="method_auto">Automatic</string>
+    <string name="method_root">Root</string>
+    <string name="method_vpn">VPN</string>
+    <string name="notification_vpn_text">Per-app blocking enforced by the local VPN engine</string>
+    <string name="stop">Stop</string>
+    <string name="toast_vpn_denied">VPN permission denied — protection is off</string>
+
     <string name="s_about">About</string>
     <string name="s_github">GitHub Repository</string>
     <string name="s_root_status">Root Access</string>
