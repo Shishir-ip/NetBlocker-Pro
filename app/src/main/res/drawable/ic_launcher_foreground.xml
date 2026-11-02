@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- White shield with a punched "blocked" hole, plus a white slash -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,22 L32,30 V48 C32,63.5 41,74.5 54,82 C67,74.5 76,63.5 76,48 V30 Z M54,37 A15,15 0 1,0 54,67 A15,15 0 1,0 54,37 Z" />
+    <path
+        android:pathData="M46.2,59.8 L61.8,44.2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+</vector>
