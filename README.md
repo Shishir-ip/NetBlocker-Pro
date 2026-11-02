@@ -2,11 +2,11 @@
 
 # 🛡️ NetBlocker Pro
 
-**Per-app network firewall for Android — block internet, Wi-Fi or mobile data for any app. No VPN.**
+**Per-app network firewall for Android — block internet, Wi-Fi or mobile data for any app. Works with or without root.**
 
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#)
 [![Language](https://img.shields.io/badge/language-Kotlin-7F52FF?logo=kotlin&logoColor=white)](#)
-[![Release](https://img.shields.io/badge/release-v1.0.0-007AFF)](#)
+[![Release](https://img.shields.io/badge/release-v1.1.0-007AFF)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -15,12 +15,18 @@
 
 ## 📖 About
 
-**NetBlocker Pro** is a lightweight, root-based firewall that lets you cut network access for any app
-installed on your device — completely, or only over **Wi-Fi** or only over **mobile data**.
+**NetBlocker Pro** is a lightweight firewall that lets you cut network access for any app installed
+on your device — completely, or only over **Wi-Fi** or only over **mobile data**.
 
-Instead of a VPN, it uses **per-UID `iptables` rules pushed through `su`** — the same technique
-used by classic Android firewalls (DroidWall / AFWall+). This means **zero VPN slot usage, zero
-traffic routing overhead, and no reconnection quirks** — rules are enforced directly by the Linux kernel.
+It ships with **two blocking engines** and picks the best one automatically:
+
+| Engine | Needs root? | Technique |
+|---|---|---|
+| 🔩 **Root / iptables** | ✅ Root | Per-UID kernel firewall rules (`-m owner --uid-owner … -j REJECT`) pushed through `su` — the DroidWall / AFWall+ technique. Zero overhead, enforced by the Linux kernel. |
+| 📡 **VPN (no root)** | ❌ None | A local VPN whose per-app filter **excludes every allowed app** from the tunnel, while blocked apps' packets enter it and are **discarded**. No user-space TCP stack, no traffic forwarding — the kernel does the per-app routing. |
+
+With **Automatic** mode (default): rooted phones get kernel-level blocking, and everyone else gets
+the VPN engine — so **normal users can use the app too**. You can force either engine in Settings.
 
 The UI is intentionally simple and follows the **iOS look & feel**: large titles, grouped rounded
 cards, iOS-style switches and segmented controls, with full dark-mode support.
@@ -30,20 +36,21 @@ cards, iOS-style switches and segmented controls, with full dark-mode support.
 - 🔌 **Block internet entirely** for any app with one tap
 - 📶 **Block Wi-Fi only** or **📱 block mobile data only** (long-press an app / detail sheet)
 - 🔄 **Blacklist mode** (block selected apps) and **Whitelist mode** (allow only selected apps, block the rest)
+- 🧠 **Dual engines with automatic selection** — root (iptables) or VPN (no root), switchable in Settings
 - 🔍 Instant **search** + filters for **All / User / System / Blocked** apps
-- 🟢 Live **status card**: protection state, root availability, firewall rule state
-- ♻️ **Apply rules on boot** (auto re-apply after restart)
+- 🟢 Live **status card**: protection state, active engine, firewall rule state
+- ♻️ **Apply rules on boot** (both engines — the VPN auto-starts after consent was granted)
 - 🔔 Optional **persistent notification** while protection is active
-- 🌐 Optional **IPv6 blocking** (ip6tables)
-- 🧩 **System apps allowed by default in whitelist mode** so system services never break
+- 🌗 **Automatic / Light / Dark** theme (true iOS dark palette)
 - 💾 **Export / Import rules** as JSON (Storage Access Framework)
 - 🧹 **Reset all rules** and **view live iptables rules** from Settings
-- 🌗 **Automatic / Light / Dark** theme (true iOS dark palette)
-- 🚫 **No VPN service, no tracking, no internet permission abuse** — works 100% offline
+- 🚫 **No tracking, no ads, works 100% offline**
 
 ## 🧠 How it works
 
-NetBlocker Pro creates dedicated iptables chains and attaches them to the `OUTPUT` chain:
+### 🔩 Root engine (iptables)
+
+Dedicated iptables chains are attached to `OUTPUT` and dispatch by output interface:
 
 ```
 OUTPUT ──► NB_OUT ──o wlan+ / eth+──► NB_WIFI   (Wi-Fi / ethernet rules)
@@ -52,21 +59,38 @@ OUTPUT ──► NB_OUT ──o wlan+ / eth+──► NB_WIFI   (Wi-Fi / etherne
 
 Each app runs under its own Linux **UID**, so rules like
 `iptables -A NB_OUT -m owner --uid-owner 10123 -j REJECT`
-block that app (and only that app) on the kernel level. In whitelist mode the chains `RETURN`
+block that app (and only that app) at the kernel level. In whitelist mode the chains `RETURN`
 allowed UIDs and `REJECT` everything else.
 
-> ⚠️ **Root (superuser) access is required.** This is the only reliable non-VPN way to enforce
-> per-app network blocking on Android. The app will ask your root manager (Magisk / KernelSU /
-> SuperSU) for permission on first use.
+### 📡 VPN engine (no root)
+
+A local VPN (one-time system consent dialog) creates a tunnel that would normally capture all
+traffic. NetBlocker Pro flips that filter:
+
+- **Allowed apps** are added with `addDisallowedApplication()` → their traffic **bypasses the
+  tunnel completely** and flows over the normal network, untouched.
+- **Blocked apps** are *not* excluded → their packets enter the tunnel, where the service simply
+  **reads and discards them**. No packets are ever forwarded — the app has no network.
+
+Wi-Fi vs mobile-data rules are applied by **re-establishing the tunnel with a different exclusion
+list whenever the default network type changes** (Wi-Fi ↔ mobile data). New app installs also
+trigger a re-apply. The whole thing costs a few lines of kernel routing — there is no TCP stack,
+no proxying and no traffic ever leaves through the app.
+
+> ℹ️ VPN-engine notes: Android shows a key 🔑 icon in the status bar while a VPN is active, and
+> the VPN uses the system's single VPN slot. On Wi-Fi↔data switches blocked connections briefly
+> re-negotiate.
 
 ## 📲 Installation
 
 1. **Download** the latest APK from the [Releases](https://github.com/Shishir-ip/NetBlocker-Pro/releases) page.
 2. **Install** it (enable *Install unknown apps* if prompted).
-3. **Grant root** to NetBlocker Pro when your superuser manager asks.
-4. Flip the **Protection** switch on → done. Tap any app's switch to cut its internet.
+3. Flip the **Protection** switch on:
+   - **Rooted phone** → grant superuser when asked → kernel firewall active.
+   - **Normal phone** → accept the one-time **VPN connection request** → VPN firewall active.
+4. Tap any app's switch to cut its internet. Done ✅
 
-**Requirements:** Android 8.0+ (API 26), rooted device (Magisk / KernelSU / SuperSU).
+**Requirements:** Android 8.0+ (API 26). Root is *optional*.
 
 ## 🛠️ Build from source
 
@@ -102,9 +126,11 @@ app/src/main/java/com/netblocker/pro/
 ├── model/AppEntry.kt           # App + policy model
 ├── data/Prefs.kt               # Settings + per-UID rule storage
 ├── data/AppRepository.kt       # Installed-apps loader
+├── firewall/Engine.kt          # Engine selection & orchestration (root/VPN)
 ├── firewall/RootShell.kt       # su shell runner
-├── firewall/RuleApplier.kt     # iptables rule builder & applier
-├── receiver/BootReceiver.kt    # Re-apply rules on boot
+├── firewall/RuleApplier.kt     # iptables rule builder & applier (root engine)
+├── firewall/VpnFirewallService.kt  # Local-VPN blocking engine (no root)
+├── receiver/BootReceiver.kt    # Re-apply rules on boot (both engines)
 ├── util/NotifHelper.kt         # Persistent protection notification
 ├── util/Backup.kt              # JSON export/import
 └── ui/
@@ -116,23 +142,28 @@ app/src/main/java/com/netblocker/pro/
 
 ## ❓ FAQ
 
-**Is root really required?**
-Yes. Android simply does not allow an ordinary app to intercept or filter other apps' traffic
-without a VPN. NetBlocker Pro avoids the VPN approach entirely and therefore needs `su` to install
-kernel-level iptables rules.
+**Do I need root?**
+No. Without root the app uses its local-VPN engine (a one-time consent dialog). With root you get
+kernel-level iptables blocking instead — the engine is selected automatically, or force it in
+**Settings → Blocking Method**.
+
+**How is this different from a "VPN app" that routes my traffic?**
+The VPN engine never forwards or proxies any traffic. It uses the VPN's per-app filter to keep
+allowed apps *outside* the tunnel and simply discards blocked apps' packets inside it. Nothing is
+sent to any server — everything happens inside your phone.
 
 **Will this drain my battery?**
-No. Once the rules are installed, enforcement happens in the Linux kernel. The app can be closed
-afterwards.
-
-**What's the difference between blocking Wi-Fi and mobile data?**
-Wi-Fi rules match traffic leaving through `wlan+`/`eth+` interfaces; mobile-data rules match
-`rmnet+`/`ccmni+` interfaces. You can block either one, both, or everything.
+The root engine: no — pure kernel rules. The VPN engine: a small overhead (typically a few %),
+same as any VPN-based firewall.
 
 **My app still connects after being blocked!**
-- Make sure **Protection is on** and the status card shows *Firewall active*.
+- Make sure **Protection is on** and the status card shows the engine as active.
 - Open **Settings → Apply Rules Now**.
-- Enable **Block IPv6** if the network uses IPv6.
+- Root engine: enable **Block IPv6** if the network uses IPv6.
+
+**Why do connections stutter when I switch between Wi-Fi and mobile data?**
+The VPN engine re-establishes its tunnel with a different per-app exclusion list on network
+changes — blocked connections re-negotiate for a moment. Allowed apps are unaffected.
 
 ## ⚖️ Disclaimer
 

@@ -19,6 +19,7 @@ object Prefs {
     private const val KEY_THEME = "theme"
     private const val KEY_HINT = "hint_dismissed"
     private const val KEY_RULES = "rules"
+    private const val KEY_METHOD = "blocking_method"
 
     private var cached: SharedPreferences? = null
 
@@ -44,6 +45,10 @@ object Prefs {
 
     fun showNotification(context: Context): Boolean = sp(context).getBoolean(KEY_NOTIFICATION, true)
     fun setShowNotification(context: Context, value: Boolean) = sp(context).edit().putBoolean(KEY_NOTIFICATION, value).apply()
+
+    /** 0 = automatic (root when available), 1 = root iptables, 2 = VPN */
+    fun blockingMethod(context: Context): Int = sp(context).getInt(KEY_METHOD, 0)
+    fun setBlockingMethod(context: Context, value: Int) = sp(context).edit().putInt(KEY_METHOD, value).apply()
 
     // ----- Appearance -----
 

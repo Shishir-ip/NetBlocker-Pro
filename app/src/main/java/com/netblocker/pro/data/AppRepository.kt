@@ -13,7 +13,7 @@ object AppRepository {
         loadAppsBlocking(context)
     }
 
-    fun loadAppsBlocking(context: Context): List<AppEntry> {
+    fun loadAppsBlocking(context: Context, withIcons: Boolean = true): List<AppEntry> {
         val pm = context.packageManager
         val rules = Prefs.getRules(context)
         val result = ArrayList<AppEntry>()
@@ -30,9 +30,13 @@ object AppRepository {
             } catch (e: Exception) {
                 ri.packageName
             }
-            val icon = try {
-                ai.loadIcon(pm)
-            } catch (e: Exception) {
+            val icon = if (withIcons) {
+                try {
+                    ai.loadIcon(pm)
+                } catch (e: Exception) {
+                    null
+                }
+            } else {
                 null
             }
             result += AppEntry(
