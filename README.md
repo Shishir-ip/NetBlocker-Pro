@@ -6,7 +6,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#)
 [![Language](https://img.shields.io/badge/language-Kotlin-7F52FF?logo=kotlin&logoColor=white)](#)
-[![Release](https://img.shields.io/badge/release-v1.2.0-007AFF)](#)
+[![Release](https://img.shields.io/badge/release-v1.2.1-007AFF)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -88,9 +88,12 @@ down — the VPN disconnects immediately and every app goes back to normal.
 Add the **NetBlocker** tile from the notification shade (edit / pencil button) and flip it anytime:
 
 - **Tile ON** → protection starts with your configured engine. On unrooted phones the local VPN
-  comes up; if the system has not granted VPN permission yet, the app opens once to show the
-  one-time consent dialog.
+  comes up; if the system has not granted VPN permission yet (or Android blocks the background
+  start), the app opens once to complete the setup — after that the tile works standalone.
 - **Tile OFF** → rules are removed / the VPN disconnects — instant back-to-normal.
+
+> The single master **Protection switch** lives on the Apps tab's status card. Settings intentionally
+> does not duplicate it.
 
 > ℹ️ VPN-engine notes: Android shows a key 🔑 icon in the status bar while a VPN is active, and
 > the VPN uses the system's single VPN slot. On Wi-Fi↔data switches blocked connections briefly

@@ -99,16 +99,9 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
 
         // ---- Firewall ----
+        // NOTE: the master Protection switch lives on the Apps tab's status card —
+        // intentionally NOT duplicated here to avoid confusion.
         content.addView(sectionTitle(getString(R.string.s_firewall)))
-
-        val protectionSwitch = makeSwitch(ctx)
-        protectionSwitch.isChecked = Prefs.protectionOn(ctx)
-        protectionSwitch.setOnCheckedChangeListener { _, checked ->
-            Prefs.setProtection(ctx, checked)
-            NotifHelper.update(ctx)
-            if (checked) RootShell.invalidateRoot()
-            applyInBackground()
-        }
 
         val modeSegment = segmentedRow(
             ctx,
@@ -136,7 +129,6 @@ class SettingsFragment : Fragment() {
 
         content.addView(
             card(
-                row(ctx, title = getString(R.string.s_protection), subtitle = getString(R.string.s_protection_sub), switchView = protectionSwitch),
                 methodSegment.first,
                 modeSegment.first,
                 row(ctx, title = getString(R.string.s_boot), subtitle = getString(R.string.s_boot_sub),

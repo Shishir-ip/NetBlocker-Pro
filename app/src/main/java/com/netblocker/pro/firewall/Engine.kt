@@ -27,7 +27,7 @@ object Engine {
     const val METHOD_ROOT = 1
     const val METHOD_VPN = 2
 
-    enum class StartResult { ROOT_STARTED, VPN_STARTED, VPN_CONSENT_NEEDED, FAILED }
+    enum class StartResult { ROOT_STARTED, VPN_STARTED, VPN_CONSENT_NEEDED, VPN_START_BLOCKED, FAILED }
 
     data class State(val rootAvailable: Boolean, val usingRoot: Boolean, val active: Boolean)
 
@@ -77,20 +77,31 @@ object Engine {
             val consent = VpnService.prepare(appContext)
             if (consent != null) {
                 StartResult.VPN_CONSENT_NEEDED
-            } else {
-                startVpn(appContext)
+            } else if (startVpn(appContext)) {
                 StartResult.VPN_STARTED
+            } else {
+                // Foreground-service start blocked from this (background) context.
+                StartResult.VPN_START_BLOCKED
             }
         }
     }
 
-    /** Start the VPN engine (call only after consent, or when prepare() is null). */
-    fun startVpn(context: Context) {
+    /**
+     * Start the VPN engine (call only after consent, or when prepare() is null).
+     * Returns false when the system blocks the start (e.g. background context) —
+     * callers should then hand off to a visible activity.
+     */
+    fun startVpn(context: Context): Boolean {
         val appContext = context.applicationContext
-        ContextCompat.startForegroundService(
-            appContext,
-            Intent(appContext, VpnFirewallService::class.java)
-        )
+        return try {
+            ContextCompat.startForegroundService(
+                appContext,
+                Intent(appContext, VpnFirewallService::class.java)
+            )
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /** Disable protection: stops the VPN engine and removes any iptables rules. */
@@ -138,7 +149,6 @@ object Engine {
             val consent = VpnService.prepare(appContext)
             if (consent == null) {
                 startVpn(appContext)
-                true
             } else {
                 false
             }
@@ -173,6 +183,9 @@ object Engine {
             }
             VpnFirewallService.isRunning
         }
-        return State(root, usingRoot, active)
+        // A start that races a "protection off" toggle self-destructs inside the
+        // service (onStartCommand checks protection); reflect the real state here.
+        val effectiveActive = active && Prefs.protectionOn(appContext)
+        return State(root, usingRoot, effectiveActive)
     }
 }

@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.VpnService
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
@@ -30,22 +31,35 @@ class ProtectionTileService : TileService() {
 
     override fun onClick() {
         val ctx = applicationContext
-        val turnOn = !Prefs.protectionOn(ctx)
-        if (turnOn) {
-            Prefs.setProtection(ctx, true)
-            updateTile()
-            thread(name = "nb-tile-on") {
-                val result = runCatching { Engine.startBlocking(ctx) }
-                    .getOrElse { Engine.StartResult.FAILED }
-                if (result == Engine.StartResult.VPN_CONSENT_NEEDED) {
-                    launchForConsent()
-                }
-            }
-        } else {
+        if (Prefs.protectionOn(ctx)) {
+            // ---- Turn OFF: stop engine, VPN disconnects, everything normal ----
             Prefs.setProtection(ctx, false)
             updateTile()
             thread(name = "nb-tile-off") {
                 runCatching { Engine.stop(ctx) }
+            }
+        } else {
+            // ---- Turn ON ----
+            updateTile()
+            thread(name = "nb-tile-on") {
+                // The system VPN consent dialog can only be shown by a visible
+                // activity — hand off to the app first if it is still needed.
+                val needsConsent = runCatching { VpnService.prepare(ctx) != null }.getOrDefault(true)
+                Prefs.setProtection(ctx, true)
+                if (needsConsent) {
+                    launchForConsent()
+                    return@thread
+                }
+                val result = runCatching { Engine.startBlocking(ctx) }
+                    .getOrElse { Engine.StartResult.FAILED }
+                if (result == Engine.StartResult.VPN_START_BLOCKED ||
+                    result == Engine.StartResult.VPN_CONSENT_NEEDED
+                ) {
+                    // Starting a foreground service is not allowed from the tile's
+                    // background context on Android 12+ — the app (visible
+                    // activity) is allowed to, so let it complete the start.
+                    launchForConsent()
+                }
             }
         }
     }
