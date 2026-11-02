@@ -28,6 +28,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.netblocker.pro.MainActivity
 import com.netblocker.pro.R
 import com.netblocker.pro.data.AppRepository
 import com.netblocker.pro.data.Prefs
@@ -65,11 +66,15 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
             val ctx = context ?: return@registerForActivityResult
             if (result.resultCode == Activity.RESULT_OK) {
                 viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
-                    Engine.startVpn(ctx)
+                    // Protection may have been switched off while the dialog was open.
+                    if (Prefs.protectionOn(ctx)) {
+                        Engine.startVpn(ctx)
+                    }
                     withContext(Dispatchers.Main) { if (isAdded) refreshStatus() }
                 }
             } else {
                 Prefs.setProtection(ctx, false)
+                Engine.requestTileUpdate(ctx)
                 bindProtectionSwitch()
                 Toast.makeText(ctx, R.string.toast_vpn_denied, Toast.LENGTH_SHORT).show()
             }
@@ -132,6 +137,9 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
 
         loadApps()
         refreshStatus()
+
+        // Tile handoff: the tile opened the app because the VPN consent dialog is needed.
+        maybeConsumeEnableRequest()
     }
 
     override fun onResume() {
@@ -145,6 +153,18 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
         switchProtection.setOnCheckedChangeListener(null)
         switchProtection.isChecked = Prefs.protectionOn(requireContext())
         switchProtection.setOnCheckedChangeListener { _, checked -> onProtectionChanged(checked) }
+    }
+
+    /**
+     * Called when the app is opened from the Quick Settings tile because the
+     * VPN consent dialog must be shown before the VPN engine can start.
+     */
+    fun maybeConsumeEnableRequest() {
+        if (!isAdded || !::switchProtection.isInitialized) return
+        val main = activity as? MainActivity ?: return
+        if (main.consumeEnableRequest()) {
+            onProtectionChanged(true)
+        }
     }
 
     // ----- Data -----

@@ -72,6 +72,12 @@
     <string name="stop">Stop</string>
     <string name="toast_vpn_denied">VPN permission denied — protection is off</string>
 
+    <string name="tile_label">NetBlocker</string>
+    <string name="tile_sub_root">Root firewall</string>
+    <string name="tile_sub_vpn">VPN firewall</string>
+    <string name="tile_desc_on">Protection is on — tap to disable</string>
+    <string name="tile_desc_off">Protection is off — tap to enable</string>
+
     <string name="s_about">About</string>
     <string name="s_github">GitHub Repository</string>
     <string name="s_root_status">Root Access</string>

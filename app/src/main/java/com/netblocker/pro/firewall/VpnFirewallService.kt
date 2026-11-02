@@ -77,6 +77,7 @@ class VpnFirewallService : VpnService() {
         if (intent?.action == ACTION_STOP) {
             Prefs.setProtection(this, false)
             NotifHelper.update(this)
+            Engine.requestTileUpdate(this)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -88,6 +89,7 @@ class VpnFirewallService : VpnService() {
         // The user disconnected the VPN or another VPN took over.
         Prefs.setProtection(this, false)
         NotifHelper.update(this)
+        Engine.requestTileUpdate(this)
         stopSelf()
         super.onRevoke()
     }
@@ -112,8 +114,10 @@ class VpnFirewallService : VpnService() {
     private fun establish(force: Boolean = false) {
         synchronized(lock) {
             try {
+                if (!isRunning) return
                 val type = currentNetworkType()
                 if (!force && tun != null && type == lastAppliedNetwork) return
+
                 val builder = Builder()
                     .setSession("NetBlocker Pro")
                     .setMtu(1500)
@@ -129,12 +133,23 @@ class VpnFirewallService : VpnService() {
                     }
                 }
 
+                // The service may have been stopped while we were building the
+                // exclusion list — never re-establish a dead service's tunnel.
+                if (!isRunning) return
+
                 val newTun = builder.establish()
                 if (newTun == null) {
                     Log.e(TAG, "establish() returned null — VPN consent revoked?")
                     stopSelf()
                     return
                 }
+                if (!isRunning) {
+                    // Stopped while establish() was in flight — kill the fresh
+                    // tunnel immediately so the VPN truly disconnects.
+                    runCatching { newTun.close() }
+                    return
+                }
+
                 val old = tun
                 tun = newTun
                 lastAppliedNetwork = type

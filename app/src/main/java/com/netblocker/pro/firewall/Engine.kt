@@ -1,10 +1,13 @@
 package com.netblocker.pro.firewall
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
+import android.service.quicksettings.TileService
 import androidx.core.content.ContextCompat
 import com.netblocker.pro.data.Prefs
+import com.netblocker.pro.receiver.ProtectionTileService
 import com.netblocker.pro.util.NotifHelper
 
 /**
@@ -37,12 +40,28 @@ object Engine {
         else -> RootShell.isRootAvailable()
     }
 
+    /** Refresh the Quick Settings tile so it mirrors the protection state. */
+    fun requestTileUpdate(context: Context) {
+        runCatching {
+            TileService.requestListeningState(
+                context.applicationContext,
+                ProtectionTileService.componentName(context)
+            )
+        }
+    }
+
     /**
      * Enable protection with the configured engine.
      * Blocking call (root probe + iptables) — run on a background thread.
      */
     fun startBlocking(context: Context): StartResult {
         val appContext = context.applicationContext
+        val result = startBlockingInternal(appContext)
+        requestTileUpdate(appContext)
+        return result
+    }
+
+    private fun startBlockingInternal(appContext: Context): StartResult {
         val useRoot = when (Prefs.blockingMethod(appContext)) {
             METHOD_VPN -> false
             else -> RootShell.isRootAvailable(force = true, timeoutSec = 15)
@@ -80,6 +99,7 @@ object Engine {
         appContext.stopService(Intent(appContext, VpnFirewallService::class.java))
         RuleApplier.clearRules(appContext)
         NotifHelper.update(appContext)
+        requestTileUpdate(appContext)
     }
 
     /** Push per-app rule changes to the running engine. Call on a background thread. */

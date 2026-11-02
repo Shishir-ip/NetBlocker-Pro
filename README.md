@@ -6,7 +6,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#)
 [![Language](https://img.shields.io/badge/language-Kotlin-7F52FF?logo=kotlin&logoColor=white)](#)
-[![Release](https://img.shields.io/badge/release-v1.1.0-007AFF)](#)
+[![Release](https://img.shields.io/badge/release-v1.2.0-007AFF)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -37,6 +37,9 @@ cards, iOS-style switches and segmented controls, with full dark-mode support.
 - 📶 **Block Wi-Fi only** or **📱 block mobile data only** (long-press an app / detail sheet)
 - 🔄 **Blacklist mode** (block selected apps) and **Whitelist mode** (allow only selected apps, block the rest)
 - 🧠 **Dual engines with automatic selection** — root (iptables) or VPN (no root), switchable in Settings
+- ⚡ **Quick Settings tile** — pull down the notification shade and toggle the **NetBlocker** tile:
+  ON = blocked apps lose internet (VPN starts on unrooted phones), OFF = everything back to
+  normal and the VPN disconnects
 - 🔍 Instant **search** + filters for **All / User / System / Blocked** apps
 - 🟢 Live **status card**: protection state, active engine, firewall rule state
 - ♻️ **Apply rules on boot** (both engines — the VPN auto-starts after consent was granted)
@@ -76,6 +79,18 @@ Wi-Fi vs mobile-data rules are applied by **re-establishing the tunnel with a di
 list whenever the default network type changes** (Wi-Fi ↔ mobile data). New app installs also
 trigger a re-apply. The whole thing costs a few lines of kernel routing — there is no TCP stack,
 no proxying and no traffic ever leaves through the app.
+
+Turning **Protection off** (switch or Quick Settings tile) stops the service and tears the tunnel
+down — the VPN disconnects immediately and every app goes back to normal.
+
+### ⚡ Quick Settings tile
+
+Add the **NetBlocker** tile from the notification shade (edit / pencil button) and flip it anytime:
+
+- **Tile ON** → protection starts with your configured engine. On unrooted phones the local VPN
+  comes up; if the system has not granted VPN permission yet, the app opens once to show the
+  one-time consent dialog.
+- **Tile OFF** → rules are removed / the VPN disconnects — instant back-to-normal.
 
 > ℹ️ VPN-engine notes: Android shows a key 🔑 icon in the status bar while a VPN is active, and
 > the VPN uses the system's single VPN slot. On Wi-Fi↔data switches blocked connections briefly
@@ -131,6 +146,7 @@ app/src/main/java/com/netblocker/pro/
 ├── firewall/RuleApplier.kt     # iptables rule builder & applier (root engine)
 ├── firewall/VpnFirewallService.kt  # Local-VPN blocking engine (no root)
 ├── receiver/BootReceiver.kt    # Re-apply rules on boot (both engines)
+├── receiver/ProtectionTileService.kt  # Quick Settings on/off tile
 ├── util/NotifHelper.kt         # Persistent protection notification
 ├── util/Backup.kt              # JSON export/import
 └── ui/
