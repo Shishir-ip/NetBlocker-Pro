@@ -22,6 +22,7 @@ import com.netblocker.pro.data.Prefs
 import com.netblocker.pro.model.AppEntry
 import com.netblocker.pro.util.NotifHelper
 import java.io.FileInputStream
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -38,6 +39,13 @@ import kotlin.concurrent.thread
  *
  * Wi-Fi vs mobile data is handled by re-establishing the tunnel with a
  * different exclusion list whenever the default network type changes.
+ *
+ * IMPORTANT teardown detail (verified on an Android 14 emulator): while a VPN
+ * session is active, the system holds a BIND_AUTO_CREATE binding on this
+ * service, so `stopService()` from outside can neither destroy the service nor
+ * run onDestroy. The tunnel is only really closed when this service closes the
+ * tun fd itself — which is why [ACTION_STOP] exists and why Engine.stop()
+ * delivers it as a start command instead of relying on stopService().
  */
 class VpnFirewallService : VpnService() {
 
@@ -50,6 +58,7 @@ class VpnFirewallService : VpnService() {
         const val ACTION_STOP = "com.netblocker.pro.action.STOP_VPN"
         const val ACTION_RECONFIGURE = "com.netblocker.pro.action.RECONFIGURE_VPN"
 
+        /** True while a tunnel is actually up (not merely "service alive"). */
         @Volatile
         var isRunning = false
             private set
@@ -61,13 +70,20 @@ class VpnFirewallService : VpnService() {
     private var lastAppliedNetwork = -1
     private var packageReceiver: BroadcastReceiver? = null
 
+    /** Set when the tunnel must go down regardless of what establish() is doing. */
+    @Volatile
+    private var stopRequested = false
+
+    private val pendingNonForce = AtomicBoolean(false)
+    private val pendingForce = AtomicBoolean(false)
+    private val establishActive = AtomicBoolean(false)
+
     private val connManager by lazy {
         getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     }
 
     override fun onCreate() {
         super.onCreate()
-        isRunning = true
         registerNetworkCallbacks()
         registerPackageReceiver()
     }
@@ -76,52 +92,84 @@ class VpnFirewallService : VpnService() {
         startForeground(NOTIFICATION_ID, buildNotification())
         if (intent?.action == ACTION_STOP || !Prefs.protectionOn(this)) {
             // Explicit stop — or a stale start that landed after the user turned
-            // protection off. Make sure nothing survives: kill tunnel + service.
+            // protection off. The service is usually still ALIVE here (the
+            // system's Vpn binding prevents destruction), so closing the tun fd
+            // below is the only thing that actually disconnects the VPN.
+            tunnelDown()
             Prefs.setProtection(this, false)
             NotifHelper.update(this)
             Engine.requestTileUpdate(this)
-            synchronized(lock) {
-                runCatching { tun?.close() }
-                tun = null
-            }
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
+        stopRequested = false
         requestEstablish(force = true)
         return START_STICKY
     }
 
     override fun onRevoke() {
         // The user disconnected the VPN or another VPN took over.
+        tunnelDown()
         Prefs.setProtection(this, false)
         NotifHelper.update(this)
         Engine.requestTileUpdate(this)
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         super.onRevoke()
     }
 
     override fun onDestroy() {
-        isRunning = false
-        synchronized(lock) {
-            runCatching { tun?.close() }
-            tun = null
-        }
-        runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+        tunnelDown()
         runCatching { connManager.unregisterNetworkCallback(netCallback) }
         packageReceiver?.let { runCatching { unregisterReceiver(it) } }
         super.onDestroy()
     }
 
-    // ------------------------------------------------------------- establish
+    // ---------------------------------------------------------------- tunnel
 
+    private fun tunnelDown() {
+        stopRequested = true
+        isRunning = false
+        synchronized(lock) {
+            runCatching { tun?.close() }
+            tun = null
+            lastAppliedNetwork = -1
+        }
+    }
+
+    /**
+     * Coalesces establish requests: network callbacks can fire several times in
+     * quick succession (three fire right at startup) — without coalescing, each
+     * one tears down and re-creates the tunnel.
+     */
     private fun requestEstablish(force: Boolean = false) {
-        thread(name = "nb-vpn-establish") { establish(force) }
+        (if (force) pendingForce else pendingNonForce).set(true)
+        if (!establishActive.compareAndSet(false, true)) return
+        thread(name = "nb-vpn-establish") {
+            try {
+                while (true) {
+                    val forceRun = pendingForce.getAndSet(false)
+                    val nonForceRun = pendingNonForce.getAndSet(false)
+                    if (!forceRun && !nonForceRun) break
+                    establish(forceRun)
+                }
+            } finally {
+                establishActive.set(false)
+                if (pendingForce.get() || pendingNonForce.get()) {
+                    // A request raced in just before we went idle — run it.
+                    requestEstablish(pendingForce.get())
+                }
+            }
+        }
     }
 
     private fun establish(force: Boolean = false) {
         synchronized(lock) {
             try {
-                if (!isRunning || !Prefs.protectionOn(this)) {
+                if (stopRequested || !Prefs.protectionOn(this)) {
+                    Log.i(TAG, "Establish aborted (stop requested or protection off)")
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                     return
                 }
@@ -136,24 +184,38 @@ class VpnFirewallService : VpnService() {
                 runCatching { builder.addRoute("::", 0) }
 
                 val disallowed = computeDisallowedPackages(type)
+                var added = 0
+                var failed = 0
+                var firstError: String? = null
                 for (pkg in disallowed) {
                     try {
                         builder.addDisallowedApplication(pkg)
-                    } catch (ignored: Exception) {
+                        added++
+                    } catch (e: Exception) {
+                        failed++
+                        if (firstError == null) firstError = "${pkg}: ${e.message}"
                     }
                 }
+                Log.i(TAG, "disallow calls: added=$added failed=$failed firstError=$firstError")
 
-                // The service may have been stopped while we were building the
-                // exclusion list — never re-establish a dead service's tunnel.
-                if (!isRunning) return
+                // The user may have flipped protection off while we were busy
+                // building the exclusion list — never establish then.
+                if (stopRequested || !Prefs.protectionOn(this)) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                    return
+                }
 
                 val newTun = builder.establish()
                 if (newTun == null) {
                     Log.e(TAG, "establish() returned null — VPN consent revoked?")
+                    tunnelDown()
+                    Prefs.setProtection(this, false)
+                    stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                     return
                 }
-                if (!isRunning) {
+                if (stopRequested) {
                     // Stopped while establish() was in flight — kill the fresh
                     // tunnel immediately so the VPN truly disconnects.
                     runCatching { newTun.close() }
@@ -163,6 +225,7 @@ class VpnFirewallService : VpnService() {
                 val old = tun
                 tun = newTun
                 lastAppliedNetwork = type
+                isRunning = true
                 runCatching { old?.close() }
                 startReaderIfNeeded()
             } catch (e: Exception) {
@@ -204,6 +267,8 @@ class VpnFirewallService : VpnService() {
                 disallowed.add(app.packageName)
             }
         }
+        Log.i(TAG, "computeDisallowed: type=$networkType rules=${rules.size} whitelist=$whitelist " +
+            "calendarDisallowed=${disallowed.contains("com.google.android.calendar")} total=${disallowed.size}")
         return disallowed
     }
 
@@ -235,16 +300,27 @@ class VpnFirewallService : VpnService() {
         if (readerThread?.isAlive == true) return
         readerThread = thread(name = "nb-vpn-reader", isDaemon = true) {
             val buffer = ByteArray(32768)
-            while (isRunning) {
+            var windowBytes = 0L
+            var windowStart = System.currentTimeMillis()
+            while (isRunning && !stopRequested) {
                 val pfd = synchronized(lock) { tun } ?: break
                 try {
                     FileInputStream(pfd.fileDescriptor).use { stream ->
-                        while (isRunning) {
+                        while (isRunning && !stopRequested) {
                             val current = synchronized(lock) { tun }
                             if (current !== pfd) break
                             val count = stream.read(buffer)
                             if (count < 0) break
                             // Discarded on purpose — blocked traffic never leaves the device.
+                            windowBytes += count
+                            val now = System.currentTimeMillis()
+                            if (now - windowStart >= 5000) {
+                                if (windowBytes > 0) {
+                                    Log.i(TAG, "captured & discarded $windowBytes bytes in last ${now - windowStart}ms")
+                                }
+                                windowBytes = 0
+                                windowStart = now
+                            }
                         }
                     }
                 } catch (ignored: Exception) {

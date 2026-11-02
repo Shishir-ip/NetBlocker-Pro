@@ -173,6 +173,15 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
         }
     }
 
+    /** Mirror of [maybeConsumeEnableRequest] for the disable flow. */
+    fun maybeConsumeDisableRequest() {
+        if (!isAdded || !::switchProtection.isInitialized) return
+        val main = activity as? MainActivity ?: return
+        if (main.consumeDisableRequest()) {
+            onProtectionChanged(false)
+        }
+    }
+
     // ----- Data -----
 
     private fun loadApps() {
