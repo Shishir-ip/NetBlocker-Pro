@@ -30,8 +30,6 @@
 
     <!-- Settings -->
     <string name="s_firewall">Firewall</string>
-    <string name="s_protection">Protection</string>
-    <string name="s_protection_sub">Master switch for the firewall</string>
     <string name="s_mode">Firewall Mode</string>
     <string name="s_mode_blacklist">Blacklist</string>
     <string name="s_mode_whitelist">Whitelist</string>

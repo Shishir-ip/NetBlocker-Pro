@@ -68,7 +68,13 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
                 viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
                     // Protection may have been switched off while the dialog was open.
                     if (Prefs.protectionOn(ctx)) {
-                        Engine.startVpn(ctx)
+                        if (!Engine.startVpn(ctx)) {
+                            withContext(Dispatchers.Main) {
+                                if (isAdded) {
+                                    Toast.makeText(ctx, R.string.toast_failed, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
                     }
                     withContext(Dispatchers.Main) { if (isAdded) refreshStatus() }
                 }
@@ -232,7 +238,6 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
     private fun onProtectionChanged(on: Boolean) {
         val ctx = requireContext()
         Prefs.setProtection(ctx, on)
-        NotifHelper.update(ctx)
         applyFilter()
         if (on) {
             RootShell.invalidateRoot()
@@ -245,7 +250,7 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
                             val consent = VpnService.prepare(ctx)
                             if (consent != null) vpnConsent.launch(consent)
                         }
-                        Engine.StartResult.FAILED ->
+                        Engine.StartResult.VPN_START_BLOCKED, Engine.StartResult.FAILED ->
                             Toast.makeText(ctx, R.string.toast_failed, Toast.LENGTH_SHORT).show()
                         else -> {}
                     }

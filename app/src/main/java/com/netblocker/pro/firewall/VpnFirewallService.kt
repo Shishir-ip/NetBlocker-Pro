@@ -74,10 +74,16 @@ class VpnFirewallService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification())
-        if (intent?.action == ACTION_STOP) {
+        if (intent?.action == ACTION_STOP || !Prefs.protectionOn(this)) {
+            // Explicit stop — or a stale start that landed after the user turned
+            // protection off. Make sure nothing survives: kill tunnel + service.
             Prefs.setProtection(this, false)
             NotifHelper.update(this)
             Engine.requestTileUpdate(this)
+            synchronized(lock) {
+                runCatching { tun?.close() }
+                tun = null
+            }
             stopSelf()
             return START_NOT_STICKY
         }
@@ -100,6 +106,7 @@ class VpnFirewallService : VpnService() {
             runCatching { tun?.close() }
             tun = null
         }
+        runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
         runCatching { connManager.unregisterNetworkCallback(netCallback) }
         packageReceiver?.let { runCatching { unregisterReceiver(it) } }
         super.onDestroy()
@@ -114,7 +121,10 @@ class VpnFirewallService : VpnService() {
     private fun establish(force: Boolean = false) {
         synchronized(lock) {
             try {
-                if (!isRunning) return
+                if (!isRunning || !Prefs.protectionOn(this)) {
+                    stopSelf()
+                    return
+                }
                 val type = currentNetworkType()
                 if (!force && tun != null && type == lastAppliedNetwork) return
 
