@@ -1,5 +1,6 @@
 package com.netblocker.pro
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -16,10 +17,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appsFragment: AppsFragment
     private lateinit var settingsFragment: SettingsFragment
     private var selectedTab = 0
+    private var pendingEnableRequest = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        pendingEnableRequest = intent?.getBooleanExtra(EXTRA_ENABLE_PROTECTION, false) ?: false
 
         val root = findViewById<LinearLayout>(R.id.root)
         val tabbar = findViewById<LinearLayout>(R.id.tabbar)
@@ -52,6 +55,21 @@ class MainActivity : AppCompatActivity() {
         outState.putInt(KEY_TAB, selectedTab)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_ENABLE_PROTECTION, false)) {
+            pendingEnableRequest = true
+            window.decorView.post { appsFragment.maybeConsumeEnableRequest() }
+        }
+    }
+
+    /** Consumed by AppsFragment to run the enable-protection flow (tile handoff). */
+    fun consumeEnableRequest(): Boolean {
+        val value = pendingEnableRequest
+        pendingEnableRequest = false
+        return value
+    }
+
     fun selectTab(index: Int) {
         if (index == selectedTab) return
         selectedTab = index
@@ -73,6 +91,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        const val EXTRA_ENABLE_PROTECTION = "com.netblocker.pro.extra.ENABLE_PROTECTION"
         private const val TAG_APPS = "apps"
         private const val TAG_SETTINGS = "settings"
         private const val KEY_TAB = "selected_tab"
