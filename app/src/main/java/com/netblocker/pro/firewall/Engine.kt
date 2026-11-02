@@ -107,6 +107,18 @@ object Engine {
     /** Disable protection: stops the VPN engine and removes any iptables rules. */
     fun stop(context: Context) {
         val appContext = context.applicationContext
+        // CRITICAL: while a VPN session is active, the system holds a
+        // BIND_AUTO_CREATE binding on our VpnService. stopService() alone
+        // therefore does NOT destroy the service (onDestroy never runs) and
+        // the tunnel stays up. Delivering an explicit STOP command reaches
+        // the still-alive service, which closes the tunnel itself.
+        runCatching {
+            appContext.startService(
+                Intent(appContext, VpnFirewallService::class.java)
+                    .setAction(VpnFirewallService.ACTION_STOP)
+            )
+        }
+        // Backstop for a service that is only "started" (not system-bound).
         appContext.stopService(Intent(appContext, VpnFirewallService::class.java))
         RuleApplier.clearRules(appContext)
         NotifHelper.update(appContext)
