@@ -1,0 +1,16 @@
+# NetBlocker Pro release signing configuration (TEMPLATE)
+#
+# Copy this file to `signing.properties` (it is gitignored) and fill in your
+# own keystore details. The keystore file must live OUTSIDE the repository
+# and must NEVER be committed.
+#
+# Generate a keystore:
+#   keytool -genkeypair -v -keystore C:/path/to/netblocker.jks \
+#     -alias netblocker -keyalg RSA -keysize 2048 -validity 10950
+#
+# storeFile is resolved relative to the project root directory.
+
+storeFile=C:/path/to/your/netblocker.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=netblocker
+keyPassword=YOUR_KEY_PASSWORD

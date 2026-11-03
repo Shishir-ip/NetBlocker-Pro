@@ -8,4 +8,11 @@ captures/
 .externalNativeBuild/
 .cxx/
 *.apk.idsig
+
+# Never commit binaries or signing material
+*.apk
 *.aab
+*.jks
+*.keystore
+keystore/
+signing.properties

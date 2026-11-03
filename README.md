@@ -6,7 +6,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#)
 [![Language](https://img.shields.io/badge/language-Kotlin-7F52FF?logo=kotlin&logoColor=white)](#)
-[![Release](https://img.shields.io/badge/release-v1.3.0-007AFF)](#)
+[![Release](https://img.shields.io/badge/release-v1.3.1-007AFF)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -129,18 +129,20 @@ The project ships with a Gradle wrapper (Gradle 8.12) and builds with the Androi
 
 ### 🔑 Signing
 
-A development keystore is included at `keystore/[signing removed]` so the project builds
-out of the box:
+Signing credentials are **not** part of this repository — the keystore lives outside the project
+and is referenced through a gitignored `signing.properties` file:
 
-| Property      | Value              |
-|---------------|--------------------|
-| Keystore      | `keystore/[signing removed]` |
-| Store password| `***REMOVED***`  |
-| Key alias     | `netblocker`       |
-| Key password  | `***REMOVED***`  |
+1. Generate your own keystore (kept **outside** the repo, never committed):
+   ```bash
+   keytool -genkeypair -v -keystore C:/secrets/netblocker.jks \
+     -alias netblocker -keyalg RSA -keysize 2048 -validity 10950
+   ```
+2. Copy `signing.properties.example` to `signing.properties` and fill in your paths/passwords.
+3. `./gradlew assembleRelease` — done.
 
-> ⚠️ This is fine for this open-source hobby project, but **never commit a real production keystore**.
-> For your own production builds, generate a private keystore and keep it secret.
+Without a `signing.properties`, release builds fall back to the debug keystore (for local builds
+only). APKs are attached to [GitHub Releases](https://github.com/Shishir-ip/NetBlocker-Pro/releases)
+and are never committed to the repository.
 
 ## 🗺️ Project structure
 
