@@ -36,6 +36,7 @@ import com.netblocker.pro.firewall.Engine
 import com.netblocker.pro.firewall.RootShell
 import com.netblocker.pro.model.AppEntry
 import com.netblocker.pro.util.NotifHelper
+import com.netblocker.pro.widget.WidgetHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -76,6 +77,7 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
                             }
                         }
                     }
+                    Engine.requestTileUpdate(ctx)
                     withContext(Dispatchers.Main) { if (isAdded) refreshStatus() }
                 }
             } else {
@@ -298,7 +300,10 @@ class AppsFragment : Fragment(), AppDetailSheet.Host {
         applyJob = viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             Engine.applyRuleChanges(appCtx)
             withContext(Dispatchers.Main) {
-                if (isAdded) refreshStatus()
+                if (isAdded) {
+                    refreshStatus()
+                    WidgetHelper.notifyDataChanged(appCtx)
+                }
             }
         }
     }

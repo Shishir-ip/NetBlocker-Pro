@@ -57,5 +57,45 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name=".widget.ToggleWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_toggle_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_toggle_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.BlockListWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_list_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_list_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.BlockListRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <activity
+            android:name=".ui.WidgetToggleActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@style/Theme.NetBlocker.Translucent" />
+
+        <activity
+            android:name=".ui.BlockListActivity"
+            android:exported="false" />
     </application>
 </manifest>

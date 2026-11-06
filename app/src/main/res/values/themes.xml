@@ -40,4 +40,12 @@
         <item name="android:paddingBottom">7dp</item>
         <item name="android:textSize">13sp</item>
     </style>
+
+    <style name="Theme.NetBlocker.Translucent" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

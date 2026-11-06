@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import com.netblocker.pro.data.Prefs
 import com.netblocker.pro.receiver.ProtectionTileService
 import com.netblocker.pro.util.NotifHelper
+import com.netblocker.pro.widget.WidgetHelper
 
 /**
  * Chooses and drives the active blocking engine.
@@ -40,7 +41,7 @@ object Engine {
         else -> RootShell.isRootAvailable()
     }
 
-    /** Refresh the Quick Settings tile so it mirrors the protection state. */
+    /** Refresh the Quick Settings tile and all home-screen widgets. */
     fun requestTileUpdate(context: Context) {
         runCatching {
             TileService.requestListeningState(
@@ -48,6 +49,7 @@ object Engine {
                 ProtectionTileService.componentName(context)
             )
         }
+        WidgetHelper.updateAll(context.applicationContext)
     }
 
     /**

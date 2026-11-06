@@ -76,6 +76,18 @@
     <string name="tile_desc_on">Protection is on — tap to disable</string>
     <string name="tile_desc_off">Protection is off — tap to enable</string>
 
+    <!-- Widgets -->
+    <string name="widget_on">On</string>
+    <string name="widget_off">Off</string>
+    <string name="widget_blocked_title">Blocked apps</string>
+    <string name="widget_whitelist_title">Whitelisted apps</string>
+    <string name="widget_empty">No blocked apps.\nTap + to add some.</string>
+    <string name="widget_add">Add apps to the block list</string>
+    <string name="widget_remove">Remove from block list</string>
+    <string name="widget_toggle_label">NetBlocker Protection</string>
+    <string name="widget_list_label">NetBlocker Blocked Apps</string>
+    <string name="widget_picker_sub">Tap a switch to block or unblock an app</string>
+
     <string name="s_about">About</string>
     <string name="s_github">GitHub Repository</string>
     <string name="s_root_status">Root Access</string>

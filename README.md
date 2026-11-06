@@ -6,7 +6,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#)
 [![Language](https://img.shields.io/badge/language-Kotlin-7F52FF?logo=kotlin&logoColor=white)](#)
-[![Release](https://img.shields.io/badge/release-v1.3.1-007AFF)](#)
+[![Release](https://img.shields.io/badge/release-v1.4.0-007AFF)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -40,6 +40,11 @@ cards, iOS-style switches and segmented controls, with full dark-mode support.
 - ⚡ **Quick Settings tile** — pull down the notification shade and toggle the **NetBlocker** tile:
   ON = blocked apps lose internet (VPN starts on unrooted phones), OFF = everything back to
   normal and the VPN disconnects
+- 🪟 **Home screen widgets**:
+  - **Protection toggle widget** (2×1, resizable) — tap to flip protection on/off with a live On/Off state
+  - **Blocked apps widget** — resizable; the bigger it is, the more apps it shows. Header has an
+    On/Off pill and a **"+"** button that opens a picker with a switch for every app; tapping a
+    row removes that app from the list instantly
 - 🔍 Instant **search** + filters for **All / User / System / Blocked** apps
 - 🟢 Live **status card**: protection state, active engine, firewall rule state
 - ♻️ **Apply rules on boot** (both engines — the VPN auto-starts after consent was granted)
