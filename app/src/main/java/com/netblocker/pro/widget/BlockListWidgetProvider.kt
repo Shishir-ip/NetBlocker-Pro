@@ -10,7 +10,6 @@ import com.netblocker.pro.data.Prefs
 import com.netblocker.pro.firewall.Engine
 import com.netblocker.pro.model.AppEntry
 import com.netblocker.pro.ui.BlockListActivity
-import com.netblocker.pro.ui.WidgetToggleActivity
 import kotlin.concurrent.thread
 
 /**
@@ -61,7 +60,7 @@ class BlockListWidgetProvider : AppWidgetProvider() {
                 R.id.widgetTogglePill,
                 context.getString(if (on) R.string.widget_on else R.string.widget_off)
             )
-            rv.setOnClickPendingIntent(R.id.widgetTogglePill, WidgetToggleActivity.pendingIntent(context))
+            rv.setOnClickPendingIntent(R.id.widgetTogglePill, ToggleWidgetProvider.togglePendingIntent(context))
             rv.setOnClickPendingIntent(R.id.widgetAdd, BlockListActivity.pendingIntent(context))
             rv.setRemoteAdapter(R.id.widgetList, Intent(context, BlockListRemoteViewsService::class.java))
             rv.setEmptyView(R.id.widgetList, R.id.widgetEmpty)

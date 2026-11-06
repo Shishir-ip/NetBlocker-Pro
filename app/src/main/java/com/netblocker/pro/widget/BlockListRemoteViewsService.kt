@@ -29,19 +29,26 @@ class BlockListRemoteViewsService : RemoteViewsService() {
         }
 
         override fun onDataSetChanged() {
-            val rules = Prefs.getRules(ctx)
-            val pm = ctx.packageManager
-            rows = AppRepository.loadAppsBlocking(ctx, withIcons = false)
-                .filter { (rules[it.uid] ?: AppEntry.POLICY_ALLOW) != AppEntry.POLICY_ALLOW }
-                .sortedBy { it.label.lowercase() }
-                .map { app ->
-                    val icon = try {
-                        pm.getApplicationIcon(app.packageName)
-                    } catch (e: Exception) {
-                        null
+            // A throwing factory makes the launcher show "an error occurred
+            // when loading widget" — never let it escape.
+            try {
+                val rules = Prefs.getRules(ctx)
+                val pm = ctx.packageManager
+                rows = AppRepository.loadAppsBlocking(ctx, withIcons = false)
+                    .filter { (rules[it.uid] ?: AppEntry.POLICY_ALLOW) != AppEntry.POLICY_ALLOW }
+                    .sortedBy { it.label.lowercase() }
+                    .map { app ->
+                        val icon = try {
+                            pm.getApplicationIcon(app.packageName)
+                        } catch (e: Exception) {
+                            null
+                        }
+                        Row(app.uid, app.label, icon?.toBitmap())
                     }
-                    Row(app.uid, app.label, icon?.toBitmap())
-                }
+            } catch (e: Exception) {
+                android.util.Log.e("NetBlockerWidget", "onDataSetChanged failed", e)
+                rows = emptyList()
+            }
         }
 
         override fun onDestroy() {

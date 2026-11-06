@@ -87,12 +87,9 @@
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
 
-        <activity
-            android:name=".ui.WidgetToggleActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:noHistory="true"
-            android:theme="@style/Theme.NetBlocker.Translucent" />
+        <receiver
+            android:name=".widget.DebugCheckReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".ui.BlockListActivity"

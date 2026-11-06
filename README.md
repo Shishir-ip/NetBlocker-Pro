@@ -6,7 +6,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-3DDC84?logo=android&logoColor=white)](#)
 [![Language](https://img.shields.io/badge/language-Kotlin-7F52FF?logo=kotlin&logoColor=white)](#)
-[![Release](https://img.shields.io/badge/release-v1.4.0-007AFF)](#)
+[![Release](https://img.shields.io/badge/release-v1.4.1-007AFF)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -41,7 +41,8 @@ cards, iOS-style switches and segmented controls, with full dark-mode support.
   ON = blocked apps lose internet (VPN starts on unrooted phones), OFF = everything back to
   normal and the VPN disconnects
 - 🪟 **Home screen widgets**:
-  - **Protection toggle widget** (2×1, resizable) — tap to flip protection on/off with a live On/Off state
+  - **Protection toggle widget** (1×1) — a small shield that flips protection on/off in the
+    background, tinted green/gray by state, exactly like the Quick Settings tile
   - **Blocked apps widget** — resizable; the bigger it is, the more apps it shows. Header has an
     On/Off pill and a **"+"** button that opens a picker with a switch for every app; tapping a
     row removes that app from the list instantly
