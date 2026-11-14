@@ -98,6 +98,15 @@ class SettingsFragment : Fragment() {
         content.removeAllViews()
         val ctx = requireContext()
 
+        // Large title, matching the Apps tab
+        content.addView(TextView(ctx).apply {
+            text = getString(R.string.tab_settings)
+            textSize = 34f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(ContextCompat.getColor(ctx, R.color.ios_label))
+            setPadding(dp(20), dp(10), dp(20), dp(2))
+        })
+
         // ---- Firewall ----
         // NOTE: the master Protection switch lives on the Apps tab's status card —
         // intentionally NOT duplicated here to avoid confusion.

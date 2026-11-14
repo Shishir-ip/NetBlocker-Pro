@@ -195,6 +195,13 @@ object Engine {
                 val consent = VpnService.prepare(appContext)
                 if (consent == null) startVpn(appContext)
             }
+            // Give the tunnel a moment to come up so the UI reflects the
+            // final state instead of a perpetual "starting…" indicator.
+            var waited = 0
+            while (!VpnFirewallService.isRunning && waited < 8000) {
+                Thread.sleep(250)
+                waited += 250
+            }
             VpnFirewallService.isRunning
         }
         // A start that races a "protection off" toggle self-destructs inside the
