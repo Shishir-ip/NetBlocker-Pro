@@ -13,7 +13,7 @@ Works with **or without root** · No tracking · No ads · iOS-style UI
 [![Release](https://img.shields.io/badge/release-v1.4.2-007AFF)](../../releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[Download the latest APK](../../releases/latest) · [Report an issue](../../issues)
+[🌐 Website](https://shishir-ip.github.io/NetBlocker-Pro/) · [Download the latest APK](../../releases/latest) · [Report an issue](../../issues)
 
 </div>
 
